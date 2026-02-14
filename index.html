@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patohb Cert Maker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .marker { cursor: move; user-select: none; }
+        .grid-cell { border: 1px solid #e2e8f0; padding: 0; transition: background-color 0.1s; }
+        .grid-cell:focus-within { outline: 2px solid #10b981; outline-offset: -2px; background-color: #f0fdf4; }
+        .grid-input { width: 100%; height: 100%; padding: 8px 12px; background: transparent; border: none; outline: none; font-size: 13px; }
+        .grid-header { background-color: #f8fafc; font-weight: 700; font-size: 11px; text-transform: uppercase; color: #64748b; border: 1px solid #e2e8f0; padding: 10px 12px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen p-2 md:p-6">
+
+    <div class="max-w-6xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col min-h-[90vh]">
+        <!-- Header -->
+        <header class="bg-slate-900 text-white p-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-emerald-500 p-2 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center gap-1">
+                    <i data-lucide="flask-conical" class="w-6 h-6"></i>
+                    <i data-lucide="award" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black tracking-tight">Patohb Cert Maker</h1>
+                    <div id="connection-status" class="flex items-center gap-2 text-[10px] text-amber-400 font-bold uppercase tracking-wider">
+                        <span data-lang="folderDisconnected">○ Folder Disconnected</span>
+                    </div>
+                </div>
+            </div>
+            
+            <nav class="flex bg-slate-800 p-1 rounded-2xl">
+                <button onclick="switchTab('template')" id="nav-template" class="nav-btn flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-white text-slate-900 shadow-xl">
+                    <i data-lucide="image" class="w-4 h-4"></i><span class="hidden sm:inline" data-lang="tabTemplate">Template</span>
+                </button>
+                <button onclick="switchTab('design')" id="nav-design" class="nav-btn flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-400 hover:text-white">
+                    <i data-lucide="layout" class="w-4 h-4"></i><span class="hidden sm:inline" data-lang="tabDesign">Design</span>
+                </button>
+                <button onclick="switchTab('data')" id="nav-data" class="nav-btn flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-400 hover:text-white">
+                    <i data-lucide="users" class="w-4 h-4"></i><span class="hidden sm:inline" data-lang="tabData">Data</span>
+                </button>
+            </nav>
+
+            <div class="flex items-center gap-2">
+                <button onclick="toggleLanguage()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-colors w-12 text-center">
+                    <span id="lang-label">EN</span>
+                </button>
+                <div id="auth-section" class="flex items-center gap-2 bg-slate-800 rounded-xl px-3 py-1.5">
+                    <button id="btn-login" onclick="handleAuthClick()" class="text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2">
+                        <i data-lucide="log-in" class="w-4 h-4"></i> <span data-lang="signIn">Sign in</span>
+                    </button>
+                    <div id="user-info" class="hidden items-center gap-2">
+                        <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-[10px] font-bold text-white">G</div>
+                        <span id="user-status" class="text-[10px] text-emerald-400 font-bold tracking-wide">CONNECTED</span>
+                        <button onclick="handleSignoutClick()" class="text-slate-500 hover:text-red-400"><i data-lucide="log-out" class="w-3 h-3"></i></button>
+                    </div>
+                    <button id="btn-settings" onclick="toggleConfig()" class="text-slate-500 hover:text-white ml-1"><i data-lucide="settings" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Config Modal -->
+        <div id="config-panel" class="hidden fixed inset-0 bg-slate-900/90 z-50 flex items-center justify-center">
+            <div class="bg-slate-800 p-6 rounded-2xl w-full max-w-md border border-slate-700 text-white shadow-2xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold">Google Configuration</h3>
+                    <button onclick="toggleConfig()" class="hover:text-red-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <div class="relative">
+                    <input type="text" id="google-client-id" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-sm mb-4 pr-16 text-slate-300" placeholder="Client ID">
+                    <span class="absolute right-3 top-2.5 text-[10px] text-emerald-500 font-bold">READY</span>
+                </div>
+                <button onclick="updateClientId()" class="w-full bg-emerald-600 py-2 rounded font-bold hover:bg-emerald-500">Save & Reload</button>
+                <p class="text-xs text-slate-500 mt-4">Origin: <span id="current-origin"></span></p>
+                <p class="text-[10px] text-slate-400 mt-2">Error 403? Enable <b>Gmail API</b> in Google Cloud Console > APIs & Services.</p>
+            </div>
+        </div>
+        
+        <!-- File Viewer Modal (Replaces Explorer Opening) -->
+        <div id="file-viewer-modal" class="hidden fixed inset-0 bg-slate-900/90 z-40 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-2xl h-[80vh] flex flex-col shadow-2xl">
+                <div class="p-4 border-b border-slate-200 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-800 flex items-center gap-2"><i data-lucide="folder-open" class="w-5 h-5 text-emerald-500"></i> Files in Connected Folder</h3>
+                    <button onclick="document.getElementById('file-viewer-modal').classList.add('hidden')" class="hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <div id="file-list-container" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50">
+                    <p class="text-slate-400 text-center italic mt-10">Scanning folder...</p>
+                </div>
+                <div class="p-4 border-t border-slate-200 bg-white rounded-b-2xl flex justify-end">
+                    <button onclick="scanForViewer()" class="text-sm font-bold text-emerald-600 hover:underline flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3 h-3"></i> Refresh List</button>
+                </div>
+            </div>
+        </div>
+
+        <main class="flex-1 p-4 md:p-8 overflow-y-auto">
+            <!-- Tab Template -->
+            <section id="tab-template" class="tab-content active">
+                <div class="max-w-2xl mx-auto space-y-6">
+                    <div id="template-upload-area" class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center">
+                        <label class="cursor-pointer group">
+                            <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                                <i data-lucide="plus" class="w-8 h-8"></i>
+                            </div>
+                            <h2 class="text-xl font-bold mb-1" data-lang="loadTemplate">Load Template</h2>
+                            <p class="text-slate-400 text-sm mb-6">PDF, PNG, JPEG</p>
+                            <span class="px-8 py-3 bg-slate-900 text-white rounded-2xl font-bold shadow-xl inline-block" data-lang="browseFiles">Browse Files</span>
+                            <input type="file" id="file-input" class="hidden" accept="image/*,.pdf">
+                        </label>
+                    </div>
+                    <div id="template-preview-area" class="hidden text-center space-y-4">
+                        <div id="preview-container" class="max-h-64 mx-auto rounded-lg shadow-xl border border-white overflow-hidden bg-white inline-block p-2"></div>
+                        <div class="flex justify-center gap-3">
+                            <button onclick="removeTemplate()" class="px-4 py-2 text-red-500 font-bold text-sm" data-lang="remove">Remove</button>
+                            <button onclick="switchTab('design')" class="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold shadow-lg" data-lang="nextDesign">Next: Design</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab Design -->
+            <section id="tab-design" class="tab-content">
+                <div class="grid lg:grid-cols-4 gap-8">
+                    <div class="lg:col-span-3 space-y-4">
+                        <div id="canvas-wrapper" class="relative bg-slate-200 rounded-2xl overflow-hidden shadow-inner cursor-crosshair aspect-[297/210]">
+                            <div id="design-canvas" class="relative w-full h-full bg-white flex items-center justify-center">
+                                <p class="text-slate-300" data-lang="uploadHint">Upload a template to begin</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <h3 class="font-bold text-slate-800" data-lang="labels">Labels</h3>
+                            <button onclick="addPlaceholder()" class="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"><i data-lucide="plus" class="w-5 h-5"></i></button>
+                        </div>
+                        <div id="placeholders-list" class="space-y-3 max-h-[350px] overflow-y-auto pr-2 border-b border-slate-100 pb-2"></div>
+                        <button onclick="manualSaveDesign()" id="btn-save-design" class="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-blue-700 transition-colors">
+                            <i data-lucide="save" class="w-4 h-4"></i> <span data-lang="saveConfig">Save Config</span>
+                        </button>
+                        <div class="pt-4 border-t border-slate-200 space-y-4">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase mb-2" data-lang="outputFormat">Output Format</label>
+                                <select id="output-format-select" onchange="state.outputFormat = this.value; saveState();" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-emerald-500">
+                                    <option value="pdf">PDF (Document)</option>
+                                    <option value="png">PNG (Image)</option>
+                                    <option value="jpg">JPEG (Image)</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="mail" class="w-4 h-4 text-blue-500"></i>
+                                    <span class="text-xs font-bold text-slate-700" data-lang="enableEmail">Enable Email</span>
+                                </div>
+                                <input type="checkbox" id="email-toggle" onchange="toggleEmailColumn(this.checked)" class="w-4 h-4 accent-emerald-500">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab Data -->
+            <section id="tab-data" class="tab-content">
+                <div class="space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-end gap-4">
+                        <div>
+                            <h2 class="text-2xl font-black text-slate-900" data-lang="recipientData">Recipient Data</h2>
+                            <p class="text-slate-500 text-sm" data-lang="pasteHint">Paste directly from Excel or Google Sheets into the grid below.</p>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="openFileViewer()" id="btn-open-folder" class="flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all bg-white text-slate-600 border border-slate-300 hover:bg-slate-50">
+                                <i data-lucide="folder-search" class="w-4 h-4"></i> <span data-lang="openSavedFolder">View Files in App</span>
+                            </button>
+                            <button onclick="selectDirectory()" id="folder-btn" class="flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all bg-amber-50 text-amber-600 border border-amber-100">
+                                <i data-lucide="folder-open" class="w-4 h-4"></i> <span data-lang="linkFolder">Link Folder</span>
+                            </button>
+                            <button onclick="runGeneration()" id="generate-btn" class="bg-slate-900 text-white px-8 py-2 rounded-xl font-bold shadow-xl disabled:opacity-30 flex items-center gap-2">
+                                <i data-lucide="zap" class="w-4 h-4"></i> <span data-lang="runProcess">Run Process</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="last-process-status" class="hidden bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-emerald-500 rounded-lg text-white"><i data-lucide="check-circle" class="w-5 h-5"></i></div>
+                            <div><h4 class="text-sm font-bold text-emerald-900" data-lang="lastCompleted">Last process completed</h4><p id="status-summary" class="text-xs text-emerald-700">...</p></div>
+                        </div>
+                        <button onclick="clearBatchStatus()" class="text-emerald-400 hover:text-emerald-600 transition-colors"><i data-lucide="x" class="w-4 h-4"></i></button>
+                    </div>
+
+                    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                        <div class="flex items-center justify-between bg-slate-50 border-b border-slate-200 px-4 py-2">
+                            <div class="flex items-center gap-4 text-xs font-bold text-slate-500 uppercase">
+                                <span id="row-count">0 Rows</span>
+                                <span class="text-slate-300">|</span>
+                                <button onclick="clearDataTable()" class="text-red-500 hover:text-red-700 transition-colors flex items-center gap-1"><i data-lucide="trash-2" class="w-3 h-3"></i> <span data-lang="clearAll">Clear All</span></button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto max-h-[500px]">
+                            <table class="w-full border-collapse table-fixed min-w-[800px]">
+                                <thead id="table-header" class="sticky top-0 z-20"></thead>
+                                <tbody id="data-table-body" class="bg-white"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <button onclick="addManualRow()" class="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors"><i data-lucide="plus" class="w-4 h-4"></i> <span data-lang="addRow">Add Empty Row</span></button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 hidden items-center justify-center">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full border border-slate-100 relative overflow-hidden">
+            <div id="processing-visual" class="animate-float mb-6 inline-block bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm"><i id="status-icon" data-lucide="file-text" class="w-16 h-16 text-emerald-500"></i></div>
+            <h3 id="loading-title" class="text-xl font-black text-slate-900" data-lang="processing">Processing Batch</h3>
+            <p id="loading-text" class="text-sm text-slate-500 mt-2 font-medium">...</p>
+            <div class="mt-6 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden"><div id="progress-bar" class="h-full bg-emerald-500 transition-all duration-300 w-0"></div></div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        // --- Configuration ---
+        const HARDCODED_GOOGLE_CLIENT_ID = '939971084257-icn512k0in8ohsmbphr3i1uhbp1k1os4.apps.googleusercontent.com';
+        const SCOPES = 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email';
+        
+        // --- State Management ---
+        let accessToken = null;
+        let tokenClient;
+        let state = {
+            activeTab: 'template',
+            template: null,
+            placeholders: [{ id: '1', name: 'Recipient Name', x: 148, y: 100, fontSize: 30, color: '#000000', bold: true }],
+            dataList: [{ id: 'init', values: { '1': 'John Doe', 'email': '' } }],
+            directoryHandle: null,
+            folderName: '', 
+            dragInfo: null,
+            outputFormat: 'pdf',
+            emailEnabled: false,
+            googleClientId: '',
+            lastBatchStatus: null,
+            auth: { token: null, expiry: 0, userEmail: '' }
+        };
+
+        const DB_NAME = 'CertifyLocalDB_v17'; 
+        const STORE_NAME = 'AppState';
+
+        const translations = {
+            en: {
+                tabTemplate: "Template", tabDesign: "Design", tabData: "Data",
+                folderDisconnected: "○ Folder Disconnected", folderConnected: "● Linked: ",
+                signIn: "Sign in", saveId: "Save ID", loadTemplate: "Load Template", browseFiles: "Browse Files", remove: "Remove", nextDesign: "Next: Design",
+                uploadHint: "Upload a template to begin", labels: "Labels", saveConfig: "Save Config", outputFormat: "Output Format", enableEmail: "Enable Email",
+                recipientData: "Recipient Data", pasteHint: "Paste directly from Excel/Sheets", linkFolder: "Link Folder", openSavedFolder: "View Files in App", runProcess: "Run Process",
+                lastCompleted: "Last process completed", clearAll: "Clear All", addRow: "Add Empty Row", processing: "Processing Batch",
+                filesSaved: "Files saved", emailsSent: "Emails sent"
+            },
+            ms: {
+                tabTemplate: "Templat", tabDesign: "Reka Bentuk", tabData: "Data",
+                folderDisconnected: "○ Folder Terputus", folderConnected: "● Terhubung: ",
+                signIn: "Log Masuk", saveId: "Simpan ID", loadTemplate: "Muat Templat", browseFiles: "Pilih Fail", remove: "Buang", nextDesign: "Seterusnya: Reka Bentuk",
+                uploadHint: "Muat naik templat untuk bermula", labels: "Label", saveConfig: "Simpan Konfigurasi", outputFormat: "Format Output", enableEmail: "Aktifkan E-mel",
+                recipientData: "Data Penerima", pasteHint: "Tampal terus dari Excel/Sheets", linkFolder: "Paut Folder", openSavedFolder: "Lihat Fail dalam App", runProcess: "Jalankan Proses",
+                lastCompleted: "Proses terakhir selesai", clearAll: "Padam Semua", addRow: "Tambah Baris Kosong", processing: "Memproses Kelompok",
+                filesSaved: "Fail disimpan", emailsSent: "E-mel dihantar"
+            }
+        };
+        let currentLang = 'en';
+
+        // --- Database Utils ---
+        async function initDB() {
+            return new Promise(resolve => {
+                const r = indexedDB.open(DB_NAME, 1);
+                r.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME);
+                r.onsuccess = e => resolve(e.target.result);
+            });
+        }
+
+        async function saveState() {
+            try {
+                const db = await initDB();
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const { dragInfo, ...toSave } = state; 
+                tx.objectStore(STORE_NAME).put(toSave, 'current');
+            } catch (e) { console.warn("State save failed", e); }
+        }
+
+        async function loadState() {
+            const db = await initDB();
+            return new Promise(resolve => {
+                const r = db.transaction(STORE_NAME).objectStore(STORE_NAME).get('current');
+                r.onsuccess = () => {
+                    if (r.result) {
+                        state = { ...state, ...r.result };
+                        if (HARDCODED_GOOGLE_CLIENT_ID) document.getElementById('btn-settings').classList.add('hidden');
+                        if (state.outputFormat) document.getElementById('output-format-select').value = state.outputFormat;
+                        if (state.emailEnabled) document.getElementById('email-toggle').checked = true;
+                        
+                        if (state.auth && state.auth.token && state.auth.expiry > Date.now()) {
+                            accessToken = state.auth.token;
+                            updateAuthUI(true);
+                        } else {
+                            state.auth = { token: null, expiry: 0 };
+                        }
+
+                        if (state.directoryHandle) updateFolderUI(true);
+                        renderAll(); renderBatchStatus(); initGsi();
+                    }
+                    resolve();
+                };
+            });
+        }
+
+        // --- Core ---
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'ms' : 'en';
+            document.getElementById('lang-label').textContent = currentLang.toUpperCase();
+            applyLanguage();
+        }
+
+        function applyLanguage() {
+            document.querySelectorAll('[data-lang]').forEach(el => {
+                const key = el.getAttribute('data-lang');
+                if (translations[currentLang][key]) el.textContent = translations[currentLang][key];
+            });
+            updateFolderUI(!!state.directoryHandle); 
+            renderBatchStatus();
+        }
+
+        function switchTab(tabId) {
+            state.activeTab = tabId;
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+            
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'text-slate-900', 'shadow-xl');
+                btn.classList.add('text-slate-400', 'hover:text-white');
+            });
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            activeBtn.classList.add('bg-white', 'text-slate-900', 'shadow-xl');
+            activeBtn.classList.remove('text-slate-400', 'hover:text-white');
+
+            if (tabId === 'design') renderDesignCanvas();
+            if (tabId === 'data') renderDataTable();
+        }
+
+        function renderAll() {
+            renderTemplate(); renderPlaceholders(); renderDataTable(); lucide.createIcons();
+        }
+
+        // --- Auth ---
+        function initGsi() {
+            const clientId = HARDCODED_GOOGLE_CLIENT_ID || state.googleClientId;
+            if (!clientId || typeof google === 'undefined') return;
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: clientId, scope: SCOPES,
+                callback: async (resp) => {
+                    if (resp.error) return alert("Auth Error: " + resp.message);
+                    accessToken = resp.access_token;
+                    try {
+                        const r = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                        if(r.ok) { const d = await r.json(); state.auth.userEmail = d.email; }
+                    } catch(e) {}
+
+                    state.auth.token = accessToken;
+                    state.auth.expiry = Date.now() + (resp.expires_in * 1000);
+                    saveState();
+                    updateAuthUI(true);
+                }
+            });
+        }
+
+        function handleAuthClick() {
+            if (!tokenClient) initGsi();
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        }
+
+        function handleSignoutClick() {
+            if (accessToken) { 
+                google.accounts.oauth2.revoke(accessToken); 
+                accessToken = null; 
+                state.auth = { token: null, expiry: 0, userEmail: '' };
+                saveState();
+                updateAuthUI(false); 
+            }
+        }
+
+        function updateAuthUI(isLoggedIn) {
+            document.getElementById('btn-login').classList.toggle('hidden', isLoggedIn);
+            document.getElementById('user-info').classList.toggle('hidden', !isLoggedIn);
+            if(isLoggedIn && state.auth.userEmail) {
+                document.getElementById('user-status').textContent = state.auth.userEmail;
+            }
+        }
+
+        function toggleConfig() {
+            document.getElementById('config-panel').classList.toggle('hidden');
+            document.getElementById('current-origin').textContent = window.location.origin;
+        }
+
+        function updateClientId() {
+            const val = document.getElementById('google-client-id').value.trim();
+            if (val) { state.googleClientId = val; saveState(); initGsi(); toggleConfig(); }
+        }
+
+        // --- File System ---
+        async function selectDirectory() {
+            try {
+                state.directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                state.folderName = state.directoryHandle.name; 
+                updateFolderUI(true);
+                saveState();
+            } catch (e) { if (e.name !== 'AbortError') alert("Folder access failed: " + e.message); }
+        }
+
+        function updateFolderUI(connected) {
+            const btn = document.getElementById('folder-btn');
+            const statusText = document.getElementById('connection-status').querySelector('span');
+            
+            if (connected) {
+                btn.classList.replace('bg-amber-50', 'bg-emerald-50');
+                btn.classList.replace('text-amber-600', 'text-emerald-600');
+                btn.classList.replace('border-amber-100', 'border-emerald-100');
+                const label = translations[currentLang].folderConnected + (state.folderName || "");
+                statusText.textContent = label;
+                btn.querySelector('span').textContent = label;
+                document.getElementById('connection-status').className = "flex items-center gap-2 text-[10px] text-emerald-400 font-bold uppercase tracking-wider";
+            } else {
+                statusText.textContent = translations[currentLang].folderDisconnected;
+            }
+        }
+
+        // --- Template ---
+        function arrayBufferToBase64(buffer) {
+            return new Promise((resolve, reject) => {
+                const blob = new Blob([buffer]);
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+        function base64ToUint8Array(base64) {
+            const binaryString = window.atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+            return bytes;
+        }
+
+        document.getElementById('file-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const isPDF = file.type === 'application/pdf';
+            const reader = new FileReader();
+            reader.readAsDataURL(file); 
+            reader.onload = async (event) => {
+                try {
+                    const dataUrl = event.target.result;
+                    let preview = '', dataStr = '';
+                    if (isPDF) {
+                        const base64 = dataUrl.split(',')[1];
+                        dataStr = dataUrl; 
+                        const pdfData = base64ToUint8Array(base64);
+                        const task = pdfjsLib.getDocument({ data: pdfData });
+                        const p = await task.promise;
+                        const page = await p.getPage(1);
+                        const v = page.getViewport({ scale: 2.0 });
+                        const c = document.createElement('canvas'); c.width = v.width; c.height = v.height;
+                        await page.render({ canvasContext: c.getContext('2d'), viewport: v }).promise;
+                        preview = c.toDataURL();
+                    } else {
+                        preview = dataUrl; dataStr = dataUrl;
+                    }
+                    state.template = { type: isPDF ? 'pdf' : 'image', data: dataStr, name: file.name, preview: preview };
+                    renderTemplate(); saveState();
+                } catch (er) { console.error(er); alert("File Load Error"); }
+            };
+        });
+
+        function renderTemplate() {
+            const upload = document.getElementById('template-upload-area');
+            const area = document.getElementById('template-preview-area');
+            const cont = document.getElementById('preview-container');
+            if (state.template) {
+                upload.classList.add('hidden'); area.classList.remove('hidden');
+                cont.innerHTML = state.template.preview ? `<img src="${state.template.preview}" class="max-h-64 rounded shadow-md">` : '';
+            } else { upload.classList.remove('hidden'); area.classList.add('hidden'); }
+            renderDesignCanvas();
+        }
+        function removeTemplate() { state.template = null; renderTemplate(); saveState(); }
+
+        // --- Design ---
+        async function manualSaveDesign() {
+            await saveState();
+            const btn = document.getElementById('btn-save-design');
+            const original = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> Saved!';
+            btn.classList.replace('bg-blue-600', 'bg-emerald-600');
+            lucide.createIcons();
+            setTimeout(() => { btn.innerHTML = original; btn.classList.replace('bg-emerald-600', 'bg-blue-600'); lucide.createIcons(); }, 1500);
+        }
+
+        function renderDesignCanvas() {
+            const canvas = document.getElementById('design-canvas');
+            canvas.innerHTML = '';
+            if (state.template?.preview) canvas.innerHTML = `<img src="${state.template.preview}" class="w-full h-full pointer-events-none select-none shadow-lg">`;
+            else canvas.innerHTML = `<p class="text-slate-300" data-lang="uploadHint">${translations[currentLang].uploadHint}</p>`;
+            
+            state.placeholders.forEach(p => {
+                const m = document.createElement('div');
+                m.className = 'absolute marker px-2 py-1 bg-white/90 border border-emerald-500 rounded shadow-sm flex items-center whitespace-nowrap z-10';
+                m.style.left = `${(p.x/297)*100}%`; m.style.top = `${(p.y/210)*100}%`;
+                m.style.transform = 'translate(-50%,-50%)'; m.style.fontSize = `${p.fontSize*0.7}px`; m.style.color = p.color;
+                m.innerHTML = `<span class="text-[9px] bg-emerald-500 text-white px-1 absolute -top-4 left-0 rounded-sm">Drag</span>${p.name}`;
+                m.onmousedown = (e) => {
+                    state.dragInfo = { id: p.id, startX: e.clientX, startY: e.clientY, origX: p.x, origY: p.y };
+                    window.onmousemove = (me) => {
+                        const r = document.getElementById('canvas-wrapper').getBoundingClientRect();
+                        p.x = Math.max(0, Math.min(297, Math.round(state.dragInfo.origX + ((me.clientX - state.dragInfo.startX)/r.width)*297)));
+                        p.y = Math.max(0, Math.min(210, Math.round(state.dragInfo.origY + ((me.clientY - state.dragInfo.startY)/r.height)*210)));
+                        renderDesignCanvas();
+                    };
+                    window.onmouseup = () => { window.onmousemove = null; saveState(); };
+                };
+                canvas.appendChild(m);
+            });
+        }
+
+        function addPlaceholder() {
+            if (state.placeholders.length>=5) return;
+            state.placeholders.push({ id: Date.now().toString(), name: 'Label', x: 148, y: 110, fontSize: 20, color: '#000000', bold: false });
+            renderPlaceholders(); renderDesignCanvas(); saveState();
+        }
+        function removePlaceholder(id) { state.placeholders = state.placeholders.filter(x=>x.id!==id); renderPlaceholders(); renderDesignCanvas(); saveState(); }
+        function renderPlaceholders() {
+            const list = document.getElementById('placeholders-list'); list.innerHTML = '';
+            state.placeholders.forEach(p => {
+                const el = document.createElement('div'); el.className = 'p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 relative group';
+                el.innerHTML = `<button onclick="removePlaceholder('${p.id}')" class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                <input value="${p.name}" oninput="state.placeholders.find(x=>x.id==='${p.id}').name=this.value; renderDataTable(); saveState();" class="w-full bg-transparent font-bold text-sm border-b border-slate-200 outline-none pb-1">
+                <div class="grid grid-cols-2 gap-2"><input type="number" value="${p.fontSize}" oninput="state.placeholders.find(x=>x.id==='${p.id}').fontSize=parseInt(this.value); renderDesignCanvas(); saveState();" class="text-xs border p-1 rounded"><input type="color" value="${p.color}" oninput="state.placeholders.find(x=>x.id==='${p.id}').color=this.value; renderDesignCanvas(); saveState();" class="w-full h-6 rounded cursor-pointer"></div>`;
+                list.appendChild(el);
+            });
+            lucide.createIcons();
+        }
+
+        // --- Logic: Data ---
+        function toggleEmailColumn(enabled) { state.emailEnabled = enabled; renderDataTable(); saveState(); }
+        function renderDataTable() {
+            const head = document.getElementById('table-header');
+            head.innerHTML = `<tr><th class="grid-header w-12 text-center">#</th>${state.placeholders.map(p=>`<th class="grid-header">${p.name}</th>`).join('')}${state.emailEnabled ? `<th class="grid-header w-64 bg-blue-50 text-blue-600">Recipient Email</th>`:''}<th class="grid-header w-12"></th></tr>`;
+            const body = document.getElementById('data-table-body'); body.innerHTML = '';
+            state.dataList.forEach((row, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td class="grid-cell text-center bg-slate-50 text-[10px] font-mono text-slate-400 border-r border-slate-200">${idx+1}</td>${state.placeholders.map(p=>`<td class="grid-cell"><input type="text" class="grid-input" value="${row.values[p.id]||''}" oninput="state.dataList.find(r=>r.id==='${row.id}').values['${p.id}']=this.value; saveState();" onpaste="handleGridPaste(event)"></td>`).join('')}${state.emailEnabled?`<td class="grid-cell bg-blue-50/20"><input type="email" class="grid-input font-bold text-blue-600" value="${row.values['email']||''}" oninput="state.dataList.find(r=>r.id==='${row.id}').values['email']=this.value; saveState();" onpaste="handleGridPaste(event)"></td>`:''}<td class="grid-cell text-center"><button onclick="removeRow('${row.id}')" class="text-slate-300 hover:text-red-500 p-2"><i data-lucide="x" class="w-3 h-3"></i></button></td>`;
+                body.appendChild(tr);
+            });
+            document.getElementById('row-count').textContent = `${state.dataList.length} Rows`;
+            lucide.createIcons();
+        }
+        function handleGridPaste(e) {
+            e.preventDefault();
+            const lines = e.clipboardData.getData('text').split(/\r?\n/).filter(l => l.trim() !== '');
+            if (lines.length > 1 || lines[0].includes('\t')) {
+                state.dataList = lines.map(line => {
+                    const cells = line.split('\t');
+                    const v = {}; state.placeholders.forEach((p, i) => v[p.id] = cells[i] || '');
+                    if (state.emailEnabled) v['email'] = cells[state.placeholders.length] || '';
+                    return { id: Math.random().toString(36).substr(2, 9), values: v };
+                });
+                renderDataTable(); saveState();
+            } else { e.target.value = lines[0]; e.target.dispatchEvent(new Event('input')); }
+        }
+        function addManualRow() { const v = {}; state.placeholders.forEach(p => v[p.id] = ''); if (state.emailEnabled) v['email'] = ''; state.dataList.push({ id: Date.now().toString(), values: v }); renderDataTable(); }
+        function removeRow(id) { state.dataList = state.dataList.filter(r => r.id !== id); renderDataTable(); saveState(); }
+        function clearDataTable() { if (confirm("Clear all?")) { state.dataList = []; renderDataTable(); saveState(); } }
+
+        // --- Logic: Generation ---
+        function renderBatchStatus() {
+            const el = document.getElementById('last-process-status');
+            if (state.lastBatchStatus) {
+                el.classList.remove('hidden');
+                document.getElementById('status-summary').textContent = `${translations[currentLang].filesSaved}: ${state.lastBatchStatus.saved} | ${translations[currentLang].emailsSent}: ${state.lastBatchStatus.emailed} | ${state.lastBatchStatus.date}`;
+            } else el.classList.add('hidden');
+        }
+        function clearBatchStatus() { state.lastBatchStatus = null; renderBatchStatus(); saveState(); }
+        
+        async function openFileViewer() {
+            if (!state.directoryHandle) return alert("Link a folder first.");
+            const modal = document.getElementById('file-viewer-modal');
+            modal.classList.remove('hidden');
+            await scanForViewer();
+        }
+
+        async function scanForViewer() {
+            const list = document.getElementById('file-list-container');
+            list.innerHTML = '';
+            try {
+                if (await state.directoryHandle.queryPermission({ mode: 'read' }) !== 'granted') {
+                    if (await state.directoryHandle.requestPermission({ mode: 'read' }) !== 'granted') {
+                         list.innerHTML = `<p class="text-red-400 text-center">Permission denied to read folder.</p>`; return;
+                    }
+                }
+                let count = 0;
+                for await (const entry of state.directoryHandle.values()) {
+                    if (entry.kind === 'file' && (entry.name.endsWith('.pdf') || entry.name.endsWith('.png') || entry.name.endsWith('.jpg'))) {
+                        count++;
+                        const d = document.createElement('div');
+                        d.className = 'flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg hover:shadow-sm';
+                        d.innerHTML = `
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <i data-lucide="file-text" class="w-5 h-5 text-slate-400 flex-shrink-0"></i>
+                                <span class="text-sm font-medium truncate">${entry.name}</span>
+                            </div>
+                            <button class="text-xs bg-slate-100 px-3 py-1 rounded hover:bg-slate-200">Open</button>
+                        `;
+                        // Native File Opening is limited, we use a blob url
+                        d.querySelector('button').onclick = async () => {
+                            const file = await entry.getFile();
+                            window.open(URL.createObjectURL(file), '_blank');
+                        };
+                        list.appendChild(d);
+                    }
+                }
+                if (count === 0) list.innerHTML = `<p class="text-slate-400 text-center">No files found.</p>`;
+                lucide.createIcons();
+            } catch (e) { list.innerHTML = `<p class="text-red-400 text-center">Error scanning folder: ${e.message}</p>`; }
+        }
+
+        async function sendGmail(recipient, subject, body, attachmentData, fileName, mimeType) {
+            try {
+                const b64 = await arrayBufferToBase64(attachmentData);
+                const msg = [`To: ${recipient}`, `Subject: ${subject}`, "MIME-Version: 1.0", `Content-Type: multipart/mixed; boundary="foo_bar_baz"`, "", `--foo_bar_baz`, "Content-Type: text/plain; charset=\"UTF-8\"", "", body, "", `--foo_bar_baz`, `Content-Type: ${mimeType}; name="${fileName}"`, `Content-Disposition: attachment; filename="${fileName}"`, "Content-Transfer-Encoding: base64", "", b64, "", `--foo_bar_baz--`].join("\r\n");
+                
+                const raw = window.btoa(unescape(encodeURIComponent(msg))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', { 
+                    method: 'POST', 
+                    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ raw }) 
+                });
+                
+                if (res.status === 403) {
+                    alert("Error 403: Enable 'Gmail API' in Google Console or check if sender is blocked.");
+                    return false;
+                }
+                return res.ok;
+            } catch (e) { 
+                console.error("Email Exception:", e); 
+                return false; 
+            }
+        }
+
+        async function saveFileToFolder(fileName, data) {
+            try {
+                const h = await state.directoryHandle.getFileHandle(fileName, { create: true });
+                const w = await h.createWritable(); 
+                await w.write(data); 
+                await w.close();
+                return true;
+            } catch (e) {
+                console.error("Save Failed:", e);
+                return false;
+            }
+        }
+
+        async function runGeneration() {
+            if (!state.template) return alert("Missing template");
+            if (!state.directoryHandle) return alert("Link a folder first");
+            if (state.emailEnabled && (!accessToken || state.auth.expiry < Date.now())) return alert("Session expired. Please sign in.");
+
+            // 1. Verify Folder Permission Explicitly
+            try {
+                if (await state.directoryHandle.queryPermission({ mode: 'readwrite' }) !== 'granted') {
+                    if (await state.directoryHandle.requestPermission({ mode: 'readwrite' }) !== 'granted') return alert("Folder write permission is required.");
+                }
+            } catch(e) { 
+                updateFolderUI(false);
+                return alert("Please re-link your folder."); 
+            }
+
+            const overlay = document.getElementById('loading-overlay');
+            overlay.classList.replace('hidden', 'flex');
+            const txt = document.getElementById('loading-text');
+            const bar = document.getElementById('progress-bar');
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+                const fmt = state.outputFormat;
+                let saved = 0, emailed = 0;
+                
+                let baseBytes = null;
+                if (state.template.type === 'pdf') {
+                    const b64 = state.template.data.split(',')[1];
+                    baseBytes = base64ToUint8Array(b64);
+                }
+
+                for (let i = 0; i < state.dataList.length; i++) {
+                    try {
+                        const row = state.dataList[i];
+                        const name = (row.values[state.placeholders[0].id] || 'Cert').replace(/[^a-z0-9]/gi, '_');
+                        const ext = fmt === 'pdf' ? 'pdf' : (fmt === 'png' ? 'png' : 'jpg');
+                        const mime = fmt === 'pdf' ? 'application/pdf' : (fmt === 'png' ? 'image/png' : 'image/jpeg');
+                        const fileName = `${name}.${ext}`;
+
+                        bar.style.width = `${((i+1)/state.dataList.length)*100}%`;
+                        txt.textContent = `Processing ${fileName}...`;
+
+                        let data; 
+                        if (fmt === 'pdf') {
+                            if (state.template.type === 'pdf') {
+                                const doc = await PDFDocument.load(baseBytes.slice(0)); 
+                                const page = doc.getPages()[0];
+                                const { width, height } = page.getSize();
+                                const helvetica = await doc.embedFont(StandardFonts.Helvetica);
+                                
+                                state.placeholders.forEach(pl => {
+                                    const h = pl.color.replace('#','');
+                                    const textSize = pl.fontSize*1.5;
+                                    const text = row.values[pl.id]||'';
+                                    const textWidth = helvetica.widthOfTextAtSize(text, textSize);
+                                    const xPos = ((pl.x/297)*width) - (textWidth / 2);
+                                    page.drawText(text, { 
+                                        x: xPos, y: height-((pl.y/210)*height), size: textSize, 
+                                        color: rgb(parseInt(h.substring(0,2),16)/255, parseInt(h.substring(2,4),16)/255, parseInt(h.substring(4,6),16)/255) 
+                                    });
+                                });
+                                data = await doc.save(); 
+                            } else {
+                                const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                                doc.addImage(state.template.data, 'JPEG', 0, 0, 297, 210);
+                                state.placeholders.forEach(pl => { 
+                                    doc.setFontSize(pl.fontSize); doc.setTextColor(pl.color); 
+                                    const text = row.values[pl.id]||'';
+                                    doc.text(text, pl.x-(doc.getTextWidth(text)/2), pl.y); 
+                                });
+                                data = new Uint8Array(doc.output('arraybuffer'));
+                            }
+                        } else {
+                            const cvs = document.createElement('canvas'); const cx = cvs.getContext('2d');
+                            cvs.width = 1188; cvs.height = 840; const img = new Image();
+                            await new Promise(r => { img.onload = r; img.src = state.template.preview; });
+                            cx.drawImage(img, 0, 0, 1188, 840);
+                            state.placeholders.forEach(pl => { 
+                                cx.fillStyle = pl.color; cx.font = `${pl.fontSize*4}px Inter`; cx.textAlign = 'center'; 
+                                cx.fillText(row.values[pl.id]||'', (pl.x/297)*1188, (pl.y/210)*840); 
+                            });
+                            data = new Uint8Array(await (await new Promise(r => cvs.toBlob(r, mime))).arrayBuffer());
+                        }
+
+                        if (state.emailEnabled && row.values['email']) {
+                            txt.textContent = `Emailing ${row.values['email']}...`;
+                            const sent = await sendGmail(row.values['email'], "Your Certificate", "Attached is your document.", data, fileName, mime);
+                            if (sent) emailed++;
+                            
+                            // Save even if email fails (fallback safety)
+                            if (await saveFileToFolder(fileName, data)) saved++;
+                            else console.error("Failed to save file locally");
+                        } else {
+                            if (await saveFileToFolder(fileName, data)) saved++;
+                        }
+                        
+                        state.lastBatchStatus = { saved, emailed, date: new Date().toLocaleString() };
+                        saveState();
+                    } catch (innerErr) {
+                        console.error("Skipping row due to error:", innerErr);
+                    }
+                }
+                renderBatchStatus();
+                alert(`Done! Saved: ${saved}, Emailed: ${emailed}`);
+            } catch (e) { console.error(e); alert("Process Error: " + e.message); } 
+            finally { overlay.classList.replace('flex', 'hidden'); }
+        }
+
+        window.onload = loadState;
+    </script>
+</body>
+</html>
