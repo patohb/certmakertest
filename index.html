@@ -254,7 +254,7 @@
             auth: { token: null, expiry: 0, userEmail: '' }
         };
 
-        const DB_NAME = 'CertifyLocalDB_v20'; // Clean DB
+        const DB_NAME = 'CertifyLocalDB_v21'; // Clean DB
         const STORE_NAME = 'AppState';
 
         const translations = {
@@ -738,42 +738,27 @@
                                 const doc = await PDFDocument.load(baseBytes.slice(0)); 
                                 const page = doc.getPages()[0];
                                 const { width, height } = page.getSize();
-                                // Embed standard font variants
-                                const fontRegular = await doc.embedFont(StandardFonts.Helvetica);
-                                const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-                                const fontItalic = await doc.embedFont(StandardFonts.HelveticaOblique);
-                                const fontBoldItalic = await doc.embedFont(StandardFonts.HelveticaBoldOblique);
+                                const helvetica = await doc.embedFont(StandardFonts.Helvetica);
                                 
                                 state.placeholders.forEach(pl => {
                                     const h = pl.color.replace('#','');
                                     const textSize = pl.fontSize*1.5;
                                     const text = row.values[pl.id]||'';
-                                    
-                                    // Select font based on flags
-                                    let fontToUse = fontRegular;
-                                    if (pl.bold && pl.italic) fontToUse = fontBoldItalic;
-                                    else if (pl.bold) fontToUse = fontBold;
-                                    else if (pl.italic) fontToUse = fontItalic;
-
-                                    const textWidth = fontToUse.widthOfTextAtSize(text, textSize);
+                                    const textWidth = helvetica.widthOfTextAtSize(text, textSize);
+                                    // Center alignment logic
                                     const xPos = ((pl.x/297)*width) - (textWidth / 2);
                                     page.drawText(text, { 
                                         x: xPos, y: height-((pl.y/210)*height), size: textSize, 
-                                        font: fontToUse,
                                         color: rgb(parseInt(h.substring(0,2),16)/255, parseInt(h.substring(2,4),16)/255, parseInt(h.substring(4,6),16)/255) 
                                     });
                                 });
                                 data = await doc.save(); 
                             } else {
                                 const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
-                                doc.addImage(state.template.data, 'JPEG', 0, 0, 297, 210);
+                                doc.addImage(state.template.data, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
                                 state.placeholders.forEach(pl => { 
-                                    let style = 'normal';
-                                    if (pl.bold && pl.italic) style = 'bolditalic';
-                                    else if (pl.bold) style = 'bold';
-                                    else if (pl.italic) style = 'italic';
-                                    doc.setFont('helvetica', style);
                                     doc.setFontSize(pl.fontSize); doc.setTextColor(pl.color); 
+                                    // jsPDF getTextWidth is simpler
                                     const text = row.values[pl.id]||'';
                                     doc.text(text, pl.x, pl.y, { align: 'center' }); // jsPDF has built-in center align
                                 });
@@ -785,23 +770,31 @@
                             await new Promise(r => { img.onload = r; img.src = state.template.preview; });
                             cx.drawImage(img, 0, 0, 1188, 840);
                             state.placeholders.forEach(pl => { 
-                                cx.fillStyle = pl.color; 
-                                const style = `${pl.italic ? 'italic ' : ''}${pl.bold ? 'bold ' : ''}`;
-                                cx.font = `${style}${pl.fontSize*4}px Inter, sans-serif`; 
-                                cx.textAlign = 'center'; 
+                                cx.fillStyle = pl.color; cx.font = `${pl.fontSize*4}px Inter`; cx.textAlign = 'center'; 
                                 cx.fillText(row.values[pl.id]||'', (pl.x/297)*1188, (pl.y/210)*840); 
                             });
-                            data = new Uint8Array(await (await new Promise(r => cvs.toBlob(r, mime))).arrayBuffer());
+                            data = new Uint8Array(await (await new Promise(r => cvs.toBlob(r, mime, 0.8))).arrayBuffer());
                         }
 
+                        // Check size limit for email (20MB)
+                        const isTooLarge = data.byteLength > (20 * 1024 * 1024);
+                        
                         if (state.emailEnabled && row.values['email']) {
-                            txt.textContent = `Emailing ${row.values['email']}...`;
-                            const sent = await sendGmail(row.values['email'], "Your Certificate", "Attached is your document.", data, fileName, mime);
-                            if (sent) emailed++;
-                            
-                            if (await saveFileToFolder(fileName, data)) saved++;
-                            else console.error("Failed to save file locally");
+                            if (isTooLarge) {
+                                txt.textContent = `File >20MB. Skipping email to ${row.values['email']}...`;
+                                // Save locally since we can't email
+                                if (await saveFileToFolder(fileName, data)) saved++;
+                            } else {
+                                txt.textContent = `Emailing ${row.values['email']}...`;
+                                const sent = await sendGmail(row.values['email'], "Your Certificate", "Attached is your document.", data, fileName, mime);
+                                if (sent) emailed++;
+                                
+                                // Save even if email fails (fallback safety)
+                                if (await saveFileToFolder(fileName, data)) saved++;
+                                else console.error("Failed to save file locally");
+                            }
                         } else {
+                            // No Email Mode -> Just Save
                             if (await saveFileToFolder(fileName, data)) saved++;
                         }
                         
